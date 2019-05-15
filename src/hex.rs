@@ -9,9 +9,11 @@ static NEWLINE: u8 = '\n' as u8;
 static PIPE: u8 =    '|' as u8;
 static PERIOD: u8 =  '.' as u8;
 
-pub enum FileOrStdout {
-    Stdout(io::BufWriter<io::Stdout>),
-    File(io::BufWriter<fs::File>),
+pub enum Writers {
+    Stdout(io::Stdout),
+    File(fs::File),
+    StdoutBuf(io::BufWriter<io::Stdout>),
+    FileBuf(io::BufWriter<fs::File>),
 }
 
 pub struct HexDumper<'a> {
@@ -19,12 +21,12 @@ pub struct HexDumper<'a> {
     buf: [u8; 14],
     right_chars: [u8; 18],
     used: usize, // Number of bytes in the current line
-    writer: &'a mut FileOrStdout,
+    writer: &'a mut Writers,
     closed: bool,
 }
 
 impl<'a> HexDumper<'a> {
-    pub fn new(writer: &'a mut FileOrStdout) -> HexDumper<'a> {
+    pub fn new(writer: &'a mut Writers) -> HexDumper<'a> {
         HexDumper{
             n: 0,
             buf: [0; 14],
@@ -39,29 +41,37 @@ impl<'a> HexDumper<'a> {
 impl<'a> HexDumper<'a> {
     fn write_buf_slice(&mut self, lower: usize, upper: usize) -> io::Result<usize> {
         match self.writer {
-            FileOrStdout::File(file) => file.write(&self.buf[lower..upper]),
-            FileOrStdout::Stdout(stdout) => stdout.write(&self.buf[lower..upper]),
+            Writers::File(file) => file.write(&self.buf[lower..upper]),
+            Writers::Stdout(stdout) => stdout.write(&self.buf[lower..upper]),
+            Writers::FileBuf(file) => file.write(&self.buf[lower..upper]),
+            Writers::StdoutBuf(stdout) => stdout.write(&self.buf[lower..upper]),
         }
     }
 
     fn write_right_chars(&mut self) -> io::Result<usize> {
         match self.writer {
-            FileOrStdout::File(file) => file.write(&self.right_chars),
-            FileOrStdout::Stdout(stdout) => stdout.write(&self.right_chars),
+            Writers::File(file) => file.write(&self.right_chars),
+            Writers::Stdout(stdout) => stdout.write(&self.right_chars),
+            Writers::FileBuf(file) => file.write(&self.right_chars),
+            Writers::StdoutBuf(stdout) => stdout.write(&self.right_chars),
         }
     }
 
     fn write_right_chars_slice(&mut self, lower: usize, upper: usize) -> io::Result<usize> {
         match self.writer {
-            FileOrStdout::File(file) => file.write(&self.right_chars[lower..upper]),
-            FileOrStdout::Stdout(stdout) => stdout.write(&self.right_chars[lower..upper]),
+            Writers::File(file) => file.write(&self.right_chars[lower..upper]),
+            Writers::Stdout(stdout) => stdout.write(&self.right_chars[lower..upper]),
+            Writers::FileBuf(file) => file.write(&self.buf[lower..upper]),
+            Writers::StdoutBuf(stdout) => stdout.write(&self.buf[lower..upper]),
         }
     }
     
     fn do_flush(&mut self) -> io::Result<()> {
         match self.writer {
-            FileOrStdout::File(file) => file.flush(),
-            FileOrStdout::Stdout(stdout) => stdout.flush(),
+            Writers::File(file) => file.flush(),
+            Writers::Stdout(stdout) => stdout.flush(),
+            Writers::FileBuf(file) => file.flush(),
+            Writers::StdoutBuf(stdout) => stdout.flush(),
         }
     }
 

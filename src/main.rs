@@ -6,23 +6,34 @@ use std::io;
 use std::fs;
 use std::path::PathBuf;
 use structopt::StructOpt;
-use hex::FileOrStdout;
+use hex::Writers;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "basic")]
 struct Opt {
     #[structopt(short = "o", long = "output", parse(from_os_str))]
     output: Option<PathBuf>,
+    
+    #[structopt(short = "b", long = "buffer")]
+    buffer: bool,
 }
 
 fn main() {
     let opt = Opt::from_args();
 
     let mut file_or_stdout = match opt.output {
-        None => FileOrStdout::Stdout(io::BufWriter::new(io::stdout())),
+        None => if opt.buffer {
+            Writers::StdoutBuf(io::BufWriter::new(io::stdout()))
+        } else {
+            Writers::Stdout(io::stdout())
+        },
         Some(pb) => {
             match fs::File::create(&pb) {
-                Ok(f) => FileOrStdout::File(io::BufWriter::new(f)),
+                Ok(f) => if opt.buffer {
+                    Writers::FileBuf(io::BufWriter::new(f))
+                } else {
+                    Writers::File(f)
+                },
                 Err(err) => {
                     eprintln!("Error opening output file {:?} {}", pb, &err);
                     std::process::exit(10);
